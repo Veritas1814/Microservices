@@ -1,23 +1,27 @@
 version: '3.8'
-
 services:
-  logging-service:
-    build: ./logging_service
+  hazelcast1:
+    image: hazelcast/hazelcast:5.3
     ports:
-      - "8001:8000"
-
-  counter-service:
-    build: ./counter_service
-    ports:
-      - "8002:8000"
-
-  facade-service:
-    build: ./facade_service
-    ports:
-      - "8000:8000"
-    depends_on:
-      - logging-service
-      - counter-service
+      - "5701:5701"
     environment:
-      - LOGGING_URL=http://logging-service:8000
-      - COUNTER_URL=http://counter-service:8000
+      - HZ_NETWORK_JOIN_MULTICAST_ENABLED=true
+      - HZ_QUEUE_DEFAULT_MAXSIZE=10
+  hazelcast2:
+    image: hazelcast/hazelcast:5.3
+    ports:
+      - "5702:5701"
+    environment:
+      - HZ_NETWORK_JOIN_MULTICAST_ENABLED=true
+      - HZ_QUEUE_DEFAULT_MAXSIZE=10
+  hazelcast3:
+    image: hazelcast/hazelcast:5.3
+    ports:
+      - "5703:5701"
+    environment:
+      - HZ_NETWORK_JOIN_MULTICAST_ENABLED=true
+      - HZ_QUEUE_DEFAULT_MAXSIZE=10
+  management-center:
+    image: hazelcast/management-center:5.3
+    ports:
+      - "8080:8080"

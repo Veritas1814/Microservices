@@ -1,0 +1,4 @@
+hazelcast:
+  queue:
+    bounded-queue:
+      max-size: 10
