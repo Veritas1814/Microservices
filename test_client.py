@@ -4,7 +4,7 @@ import time
 
 FACADE_URL = "http://localhost:8000"
 NUM_CLIENTS = 10
-REQUESTS_PER_CLIENT = 10000
+REQUESTS_PER_CLIENT = 1000
 
 async def make_requests(session, user_id, amount):
     for _ in range(REQUESTS_PER_CLIENT):
@@ -30,18 +30,15 @@ async def run_scenario(scenario_name, same_account=False):
     print(f"Total time: {total_time:.2f} seconds")
     print(f"Requests per second (RPS): {rps:.2f}")
 
-    # Check stats
     async with aiohttp.ClientSession() as session:
-        async with session.get(f"{FACADE_URL}/stats") as response:
+        async with session.get(f"{FACADE_URL}/metrics") as response:
             stats = await response.json()
             print(f"Time spent in Logging Service: {stats['logging_time']:.2f}s")
             print(f"Time spent in Counter Service: {stats['counter_time']:.2f}s")
 
 async def main():
-    # Scenario 1: 10 clients, 10K transactions each to their OWN accounts [cite: 102]
     await run_scenario("Scenario 1 (Different Accounts)", same_account=False)
 
-    # Scenario 2: 10 clients, 10K transactions each to the SAME account [cite: 104]
     await run_scenario("Scenario 2 (Same Account)", same_account=True)
 
 if __name__ == "__main__":

@@ -1,13 +1,76 @@
 version: '3.8'
 
 services:
-  logging-service:
-    build: ./logging_service
+  hz1:
+    image: hazelcast/hazelcast:5.3
+    environment:
+      - HZ_NETWORK_JOIN_MULTICAST_ENABLED=false
+      - HZ_NETWORK_JOIN_TCP_IP_ENABLED=true
+      - HZ_NETWORK_JOIN_TCP_IP_MEMBERS=hz1,hz2,hz3
+  hz2:
+    image: hazelcast/hazelcast:5.3
+    environment:
+      - HZ_NETWORK_JOIN_MULTICAST_ENABLED=false
+      - HZ_NETWORK_JOIN_TCP_IP_ENABLED=true
+      - HZ_NETWORK_JOIN_TCP_IP_MEMBERS=hz1,hz2,hz3
+  hz3:
+    image: hazelcast/hazelcast:5.3
+    environment:
+      - HZ_NETWORK_JOIN_MULTICAST_ENABLED=false
+      - HZ_NETWORK_JOIN_TCP_IP_ENABLED=true
+      - HZ_NETWORK_JOIN_TCP_IP_MEMBERS=hz1,hz2,hz3
+  management-center:
+    image: hazelcast/management-center:5.3
     ports:
-      - "8001:8000"
+      - "8080:8080"
+    environment:
+      - MC_DEFAULT_CLUSTER=dev
+      - MC_DEFAULT_CLUSTER_MEMBERS=hz1,hz2,hz3
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: counter_db
+    ports:
+      - "5432:5432"
+
+  logging1:
+    build: ./logging_service
+    environment:
+      - HZ_MEMBERS=hz1,hz2,hz3
+      - INSTANCE_NAME=logging1
+    depends_on:
+      - hz1
+      - hz2
+      - hz3
+
+  logging2:
+    build: ./logging_service
+    environment:
+      - HZ_MEMBERS=hz1,hz2,hz3
+      - INSTANCE_NAME=logging2
+    depends_on:
+      - hz1
+      - hz2
+      - hz3
+
+  logging3:
+    build: ./logging_service
+    environment:
+      - HZ_MEMBERS=hz1,hz2,hz3
+      - INSTANCE_NAME=logging3
+    depends_on:
+      - hz1
+      - hz2
+      - hz3
 
   counter-service:
     build: ./counter_service
+    environment:
+      - DB_URL=postgresql://admin:password@postgres:5432/counter_db
+    depends_on:
+      - postgres
     ports:
       - "8002:8000"
 
@@ -16,8 +79,10 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - logging-service
+      - logging1
+      - logging2
+      - logging3
       - counter-service
     environment:
-      - LOGGING_URL=http://logging-service:8000
+      - LOGGING_URLS=http://logging1:8000,http://logging2:8000,http://logging3:8000
       - COUNTER_URL=http://counter-service:8000
