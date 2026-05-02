@@ -1,24 +1,33 @@
 version: '3.8'
 
 services:
+
+  config-server:
+    build: ./config_server
+    ports:
+      - "8085:8000"
+
   hz1:
     image: hazelcast/hazelcast:5.3
     environment:
       - HZ_NETWORK_JOIN_MULTICAST_ENABLED=false
       - HZ_NETWORK_JOIN_TCP_IP_ENABLED=true
       - HZ_NETWORK_JOIN_TCP_IP_MEMBERS=hz1,hz2,hz3
+
   hz2:
     image: hazelcast/hazelcast:5.3
     environment:
       - HZ_NETWORK_JOIN_MULTICAST_ENABLED=false
       - HZ_NETWORK_JOIN_TCP_IP_ENABLED=true
       - HZ_NETWORK_JOIN_TCP_IP_MEMBERS=hz1,hz2,hz3
+
   hz3:
     image: hazelcast/hazelcast:5.3
     environment:
       - HZ_NETWORK_JOIN_MULTICAST_ENABLED=false
       - HZ_NETWORK_JOIN_TCP_IP_ENABLED=true
       - HZ_NETWORK_JOIN_TCP_IP_MEMBERS=hz1,hz2,hz3
+
   management-center:
     image: hazelcast/management-center:5.3
     ports:
@@ -26,6 +35,7 @@ services:
     environment:
       - MC_DEFAULT_CLUSTER=dev
       - MC_DEFAULT_CLUSTER_MEMBERS=hz1,hz2,hz3
+
   postgres:
     image: postgres:15
     environment:
@@ -40,7 +50,11 @@ services:
     environment:
       - HZ_MEMBERS=hz1,hz2,hz3
       - INSTANCE_NAME=logging1
+      - CONFIG_SERVER_URL=http://config-server:8000
+      - MY_SERVICE_NAME=logging-service
+      - MY_SERVICE_URL=http://logging1:8000
     depends_on:
+      - config-server
       - hz1
       - hz2
       - hz3
@@ -50,7 +64,11 @@ services:
     environment:
       - HZ_MEMBERS=hz1,hz2,hz3
       - INSTANCE_NAME=logging2
+      - CONFIG_SERVER_URL=http://config-server:8000
+      - MY_SERVICE_NAME=logging-service
+      - MY_SERVICE_URL=http://logging2:8000
     depends_on:
+      - config-server
       - hz1
       - hz2
       - hz3
@@ -60,7 +78,11 @@ services:
     environment:
       - HZ_MEMBERS=hz1,hz2,hz3
       - INSTANCE_NAME=logging3
+      - CONFIG_SERVER_URL=http://config-server:8000
+      - MY_SERVICE_NAME=logging-service
+      - MY_SERVICE_URL=http://logging3:8000
     depends_on:
+      - config-server
       - hz1
       - hz2
       - hz3
@@ -69,20 +91,34 @@ services:
     build: ./counter_service
     environment:
       - DB_URL=postgresql://admin:password@postgres:5432/counter_db
-    depends_on:
-      - postgres
+      - HZ_MEMBERS=hz1,hz2,hz3
+      - CONFIG_SERVER_URL=http://config-server:8000
+      - MY_SERVICE_NAME=counter-service
+      - MY_SERVICE_URL=http://counter-service:8000
     ports:
       - "8002:8000"
+    depends_on:
+      - config-server
+      - postgres
+      - hz1
+      - hz2
+      - hz3
 
   facade-service:
     build: ./facade_service
     ports:
       - "8000:8000"
+    environment:
+      - HZ_MEMBERS=hz1,hz2,hz3
+      - CONFIG_SERVER_URL=http://config-server:8000
+      - MY_SERVICE_NAME=facade-service
+      - MY_SERVICE_URL=http://facade-service:8000
     depends_on:
+      - config-server
       - logging1
       - logging2
       - logging3
       - counter-service
-    environment:
-      - LOGGING_URLS=http://logging1:8000,http://logging2:8000,http://logging3:8000
-      - COUNTER_URL=http://counter-service:8000
+      - hz1
+      - hz2
+      - hz3
