@@ -2,10 +2,40 @@ version: '3.8'
 
 services:
 
-  config-server:
-    build: ./config_server
+  consul:
+    image: hashicorp/consul:1.17
     ports:
-      - "8085:8000"
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: "agent -server -bootstrap -ui -client=0.0.0.0"
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  consul-init:
+    image: python:3.10-slim
+    restart: "no"
+    depends_on:
+      consul:
+        condition: service_healthy
+    command: |
+      python -c "
+      import urllib.request
+      BASE = 'http://consul:8500/v1/kv'
+      KVS = [
+        ('config/hazelcast/members',      'hz1:5701,hz2:5701,hz3:5701'),
+        ('config/hazelcast/cluster_name', 'dev'),
+        ('config/mq/queue_name',          'counter-queue'),
+      ]
+      for key, val in KVS:
+          req = urllib.request.Request(BASE+'/'+key, data=val.encode(), method='PUT')
+          urllib.request.urlopen(req)
+          print('SET', key, '=', val)
+      print('Consul KV initialized!')
+      "
 
   hz1:
     image: hazelcast/hazelcast:5.3
@@ -47,78 +77,113 @@ services:
 
   logging1:
     build: ./logging_service
+    command: ["uvicorn", "logging_service_main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      - HZ_MEMBERS=hz1,hz2,hz3
+      - CONSUL_URL=http://consul:8500
       - INSTANCE_NAME=logging1
-      - CONFIG_SERVER_URL=http://config-server:8000
       - MY_SERVICE_NAME=logging-service
-      - MY_SERVICE_URL=http://logging1:8000
+      - MY_SERVICE_ID=logging-service-logging1
+      - MY_ADDRESS=logging1
+      - MY_PORT=8000
     depends_on:
-      - config-server
-      - hz1
-      - hz2
-      - hz3
+      consul:
+        condition: service_healthy
+      hz1:
+        condition: service_started
+      hz2:
+        condition: service_started
+      hz3:
+        condition: service_started
 
   logging2:
     build: ./logging_service
+    command: ["uvicorn", "logging_service_main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      - HZ_MEMBERS=hz1,hz2,hz3
+      - CONSUL_URL=http://consul:8500
       - INSTANCE_NAME=logging2
-      - CONFIG_SERVER_URL=http://config-server:8000
       - MY_SERVICE_NAME=logging-service
-      - MY_SERVICE_URL=http://logging2:8000
+      - MY_SERVICE_ID=logging-service-logging2
+      - MY_ADDRESS=logging2
+      - MY_PORT=8000
     depends_on:
-      - config-server
-      - hz1
-      - hz2
-      - hz3
+      consul:
+        condition: service_healthy
+      hz1:
+        condition: service_started
+      hz2:
+        condition: service_started
+      hz3:
+        condition: service_started
 
   logging3:
     build: ./logging_service
+    command: ["uvicorn", "logging_service_main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
-      - HZ_MEMBERS=hz1,hz2,hz3
+      - CONSUL_URL=http://consul:8500
       - INSTANCE_NAME=logging3
-      - CONFIG_SERVER_URL=http://config-server:8000
       - MY_SERVICE_NAME=logging-service
-      - MY_SERVICE_URL=http://logging3:8000
+      - MY_SERVICE_ID=logging-service-logging3
+      - MY_ADDRESS=logging3
+      - MY_PORT=8000
     depends_on:
-      - config-server
-      - hz1
-      - hz2
-      - hz3
+      consul:
+        condition: service_healthy
+      hz1:
+        condition: service_started
+      hz2:
+        condition: service_started
+      hz3:
+        condition: service_started
 
   counter-service:
     build: ./counter_service
+    command: ["uvicorn", "counter_service_main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
+      - CONSUL_URL=http://consul:8500
       - DB_URL=postgresql://admin:password@postgres:5432/counter_db
-      - HZ_MEMBERS=hz1,hz2,hz3
-      - CONFIG_SERVER_URL=http://config-server:8000
       - MY_SERVICE_NAME=counter-service
-      - MY_SERVICE_URL=http://counter-service:8000
+      - MY_SERVICE_ID=counter-service-1
+      - MY_ADDRESS=counter-service
+      - MY_PORT=8000
     ports:
       - "8002:8000"
     depends_on:
-      - config-server
-      - postgres
-      - hz1
-      - hz2
-      - hz3
+      consul:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+      hz1:
+        condition: service_started
+      hz2:
+        condition: service_started
+      hz3:
+        condition: service_started
 
   facade-service:
     build: ./facade_service
+    command: ["uvicorn", "facade_service_main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     environment:
-      - HZ_MEMBERS=hz1,hz2,hz3
-      - CONFIG_SERVER_URL=http://config-server:8000
+      - CONSUL_URL=http://consul:8500
       - MY_SERVICE_NAME=facade-service
-      - MY_SERVICE_URL=http://facade-service:8000
+      - MY_SERVICE_ID=facade-service-1
+      - MY_ADDRESS=facade-service
+      - MY_PORT=8000
     depends_on:
-      - config-server
-      - logging1
-      - logging2
-      - logging3
-      - counter-service
-      - hz1
-      - hz2
-      - hz3
+      consul:
+        condition: service_healthy
+      logging1:
+        condition: service_started
+      logging2:
+        condition: service_started
+      logging3:
+        condition: service_started
+      counter-service:
+        condition: service_started
+      hz1:
+        condition: service_started
+      hz2:
+        condition: service_started
+      hz3:
+        condition: service_started
